@@ -202,7 +202,7 @@ class Trainer:
         # set up writers/profilers if enabled
         writer_log_path = self.base_dir / self.config.logging.relative_log_dir
         writer.setup_event_writer(
-            self.config.is_wandb_enabled(),
+            False,
             self.config.is_tensorboard_enabled(),
             self.config.is_comet_enabled(),
             log_dir=writer_log_path,
