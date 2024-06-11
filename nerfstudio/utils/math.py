@@ -208,10 +208,10 @@ def conical_frustum_to_gaussian_multisamples(
     Returns:
         Gaussians: Approximation of conical frustums
     """
-    def theta_angles(x: Float[Tensor, "*batch 3"]):
+    def theta_angles(x):
         return (x * torch.pi) / 3
 
-    thetas = Tensor([0,
+    thetas = torch.tensor([0,
               theta_angles(2),
               theta_angles(4),
               theta_angles(3),
@@ -223,12 +223,32 @@ def conical_frustum_to_gaussian_multisamples(
     # time delta t_delta
     t_delta = (ends - starts) / 2.0
     hw = (ends - starts) / 2.0
-    def t_j(x: Float[Tensor, "*batch 3"],
-            j: Float):
-        nominator = t_delta*(ends**2 + 2*t_mu**2 + (3 / np.sqrt(7)((2*j/5) - 1)) * torch.sqrt((t_delta**2 -  t_mu**2)**2 + 4*t_mu**4))
+    def t_j(j: Float):
+        # first_exp = ends**2 + 2*t_mu**2
+        # sec_exp = torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4)
+        # add = (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * sec_exp
+        nominator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
         denominator = (t_delta**2 + 3*t_mu**2)
         return starts + nominator / denominator
 
+    def create_multisample_coordinates(tj, index):
+         return torch.tensor([radius * tj * np.cos(thetas[index] / np.sqrt(2)),
+                              radius * tj * np.sin(thetas[index] / np.sqrt(2)),
+                              tj])
+    def create_multisample(index):
+        tj = t_j(index)
+        x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
+        y = radius * tj * np.sin(thetas[index] / np.sqrt(2))
+        stacked = torch.stack((x, y, tj), dim=-1)
+        return stacked
+
+    first = create_multisample(0)
+    second = create_multisample(1)
+    third = create_multisample(2)
+    forth = create_multisample(3)
+    fifth = create_multisample(4)
+    sixth = create_multisample(5)
+    multisamples = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
 
     means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
     dir_variance = (hw**2) / 3 - (4 / 15) * ((hw**4 * (12 * mu**2 - hw**2)) / (3 * mu**2 + hw**2) ** 2)
