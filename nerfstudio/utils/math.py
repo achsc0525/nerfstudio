@@ -224,12 +224,9 @@ def conical_frustum_to_gaussian_multisamples(
     t_delta = (ends - starts) / 2.0
     hw = (ends - starts) / 2.0
     def t_j(j: Float):
-        # first_exp = ends**2 + 2*t_mu**2
-        # sec_exp = torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4)
-        # add = (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * sec_exp
-        nominator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
+        numerator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
         denominator = (t_delta**2 + 3*t_mu**2)
-        return starts + nominator / denominator
+        return starts + numerator / denominator
 
     def create_multisample_coordinates(tj, index):
          return torch.tensor([radius * tj * np.cos(thetas[index] / np.sqrt(2)),
