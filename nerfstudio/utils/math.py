@@ -19,6 +19,7 @@ import math
 from dataclasses import dataclass
 from typing import Literal, Tuple
 
+import numpy as np
 import torch
 from jaxtyping import Bool, Float
 from torch import Tensor
@@ -186,6 +187,53 @@ def conical_frustum_to_gaussian(
     radius_variance = radius**2 * ((mu**2) / 4 + (5 / 12) * hw**2 - 4 / 15 * (hw**4) / (3 * mu**2 + hw**2))
     return compute_3d_gaussian(directions, means, dir_variance, radius_variance)
 
+def conical_frustum_to_gaussian_multisamples(
+    origins: Float[Tensor, "*batch 3"],
+    directions: Float[Tensor, "*batch 3"],
+    starts: Float[Tensor, "*batch 1"],
+    ends: Float[Tensor, "*batch 1"],
+    radius: Float[Tensor, "*batch 1"],
+) -> Gaussians:
+    """Approximates conical frustums with a Gaussian distributions.
+
+    Uses stable parameterization described in mip-NeRF publication.
+
+    Args:
+        origins: Origins of cones.
+        directions: Direction (axis) of frustums.
+        starts: Start of conical frustums.
+        ends: End of conical frustums.
+        radius: Radii of cone a distance of 1 from the origin.
+
+    Returns:
+        Gaussians: Approximation of conical frustums
+    """
+    def theta_angles(x: Float[Tensor, "*batch 3"]):
+        return (x * torch.pi) / 3
+
+    thetas = Tensor([0,
+              theta_angles(2),
+              theta_angles(4),
+              theta_angles(3),
+              theta_angles(5),
+              theta_angles(1)])
+
+    t_mu = (starts + ends) / 2.0
+    mu = (starts + ends) / 2.0
+    # time delta t_delta
+    t_delta = (ends - starts) / 2.0
+    hw = (ends - starts) / 2.0
+    def t_j(x: Float[Tensor, "*batch 3"],
+            j: Float):
+        nominator = t_delta*(ends**2 + 2*t_mu**2 + (3 / np.sqrt(7)((2*j/5) - 1)) * torch.sqrt((t_delta**2 -  t_mu**2)**2 + 4*t_mu**4))
+        denominator = (t_delta**2 + 3*t_mu**2)
+        return starts + nominator / denominator
+
+
+    means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
+    dir_variance = (hw**2) / 3 - (4 / 15) * ((hw**4 * (12 * mu**2 - hw**2)) / (3 * mu**2 + hw**2) ** 2)
+    radius_variance = radius**2 * ((mu**2) / 4 + (5 / 12) * hw**2 - 4 / 15 * (hw**4) / (3 * mu**2 + hw**2))
+    return compute_3d_gaussian(directions, means, dir_variance, radius_variance)
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
     """Computes the expected value of sin(y) where y ~ N(x_means, x_vars)
