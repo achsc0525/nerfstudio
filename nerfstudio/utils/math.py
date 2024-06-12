@@ -228,10 +228,6 @@ def conical_frustum_to_gaussian_multisamples(
         denominator = (t_delta**2 + 3*t_mu**2)
         return starts + numerator / denominator
 
-    def create_multisample_coordinates(tj, index):
-         return torch.tensor([radius * tj * np.cos(thetas[index] / np.sqrt(2)),
-                              radius * tj * np.sin(thetas[index] / np.sqrt(2)),
-                              tj])
     def create_multisample(index):
         tj = t_j(index)
         x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
@@ -245,7 +241,34 @@ def conical_frustum_to_gaussian_multisamples(
     forth = create_multisample(3)
     fifth = create_multisample(4)
     sixth = create_multisample(5)
-    multisamples = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
+
+    # Create multisamples as stated in zip nerf paper equation 3
+    ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
+
+    def create_orthonormal_basis(directions):
+        batch_size, num_directions, direction = directions.shape
+        d_norm = torch.norm(directions, dim=-1, keepdim=True)
+        e3 = directions / d_norm
+
+        rand_vector = torch.tensor([1.0, 0.0, 0.0], device=directions.device)
+        rand_vector = rand_vector.expand_as(e3)
+        e2 = torch.cross(e3, rand_vector)
+        e2 /= torch.norm(e2, dim=-1, keepdim=True)
+
+        e1 = torch.cross(e2, e3)
+        return torch.stack((e1, e2, e3), dim=-1)
+
+    # basis = torch.clone(directions)
+    directions_clone = torch.clone(directions)
+    basis = create_orthonormal_basis(directions=directions_clone)
+    ms_wc = torch.matmul(ms, basis)
+    print(ms_wc.shape)
+
+
+    print(basis.shape)
+
+
+
 
     means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
     dir_variance = (hw**2) / 3 - (4 / 15) * ((hw**4 * (12 * mu**2 - hw**2)) / (3 * mu**2 + hw**2) ** 2)
