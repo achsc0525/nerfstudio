@@ -256,24 +256,26 @@ def conical_frustum_to_gaussian_multisamples(
     fifth, t4 = construct_multisample(4)
     sixth, t5 = construct_multisample(5)
 
-    # ToDo: multiply or divide by scale parameter 0.5
-    sigma = (torch.cat((t0, t1, t2, t3, t4, t5), dim=2) * radius) * np.sqrt(2) * 0.5
-
     # Create multisamples as stated in zip nerf paper equation 3
     ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
 
-
     directions_clone = torch.clone(directions)
-    basis = create_orthonormal_basis(directions=directions_clone)
+    # Create orthonormal basis
+    basis = create_orthonormal_basis(direction_tensor=directions_clone)
+    # scale by orthonormal basis and rotate into world coordinates
     ms_wc = torch.matmul(ms, basis)
-    print(origins.shape)
+
+    # expand origins and directions so it matches the dimensions of the multisamples
     origins_expanded = torch.clone(origins).unsqueeze(2).expand(-1, -1, 6, -1)
     directions_expanded = torch.clone(directions).unsqueeze(2).expand(-1, -1, 6, -1)
 
+    # Create means of Gaussians
     means = origins_expanded + directions_expanded * ms_wc
-    print(means.shape)
+    # Create standard deviation
+    # ToDo: multiply or divide by scale parameter 0.5
+    sigma = (torch.cat((t0, t1, t2, t3, t4, t5), dim=2) * radius) * np.sqrt(2) * 0.5
 
-
+    # ToDo: remove this code later on
     means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
     dir_variance = (hw**2) / 3 - (4 / 15) * ((hw**4 * (12 * mu**2 - hw**2)) / (3 * mu**2 + hw**2) ** 2)
     radius_variance = radius**2 * ((mu**2) / 4 + (5 / 12) * hw**2 - 4 / 15 * (hw**4) / (3 * mu**2 + hw**2))
