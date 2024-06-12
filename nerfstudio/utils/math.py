@@ -218,39 +218,30 @@ def conical_frustum_to_gaussian_multisamples(
               theta_angles(5),
               theta_angles(1)])
 
-    t_mu = (starts + ends) / 2.0
     mu = (starts + ends) / 2.0
-    # time delta t_delta
-    t_delta = (ends - starts) / 2.0
     hw = (ends - starts) / 2.0
-    def t_j(j: Float):
+
+    t_mu = (starts + ends) / 2.0
+    t_delta = (ends - starts) / 2.0
+
+    def t_j(j):
         numerator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
         denominator = (t_delta**2 + 3*t_mu**2)
         return starts + numerator / denominator
 
-    def create_multisample(index):
+    def construct_multisample(index):
         tj = t_j(index)
         x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
         y = radius * tj * np.sin(thetas[index] / np.sqrt(2))
         stacked = torch.stack((x, y, tj), dim=-1)
-        return stacked
+        return stacked, tj
 
-    first = create_multisample(0)
-    second = create_multisample(1)
-    third = create_multisample(2)
-    forth = create_multisample(3)
-    fifth = create_multisample(4)
-    sixth = create_multisample(5)
+    def create_orthonormal_basis(direction_tensor):
+        batch_size, num_directions, direction = direction_tensor.shape
+        d_norm = torch.norm(direction_tensor, dim=-1, keepdim=True)
+        e3 = direction_tensor / d_norm
 
-    # Create multisamples as stated in zip nerf paper equation 3
-    ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
-
-    def create_orthonormal_basis(directions):
-        batch_size, num_directions, direction = directions.shape
-        d_norm = torch.norm(directions, dim=-1, keepdim=True)
-        e3 = directions / d_norm
-
-        rand_vector = torch.tensor([1.0, 0.0, 0.0], device=directions.device)
+        rand_vector = torch.tensor([1.0, 0.0, 0.0], device=direction_tensor.device)
         rand_vector = rand_vector.expand_as(e3)
         e2 = torch.cross(e3, rand_vector)
         e2 /= torch.norm(e2, dim=-1, keepdim=True)
@@ -258,16 +249,29 @@ def conical_frustum_to_gaussian_multisamples(
         e1 = torch.cross(e2, e3)
         return torch.stack((e1, e2, e3), dim=-1)
 
-    # basis = torch.clone(directions)
+    first, t0 = construct_multisample(0)
+    second, t1 = construct_multisample(1)
+    third, t2 = construct_multisample(2)
+    forth, t3 = construct_multisample(3)
+    fifth, t4 = construct_multisample(4)
+    sixth, t5 = construct_multisample(5)
+
+    # ToDo: multiply or divide by scale parameter 0.5
+    sigma = (torch.cat((t0, t1, t2, t3, t4, t5), dim=2) * radius) * np.sqrt(2) * 0.5
+
+    # Create multisamples as stated in zip nerf paper equation 3
+    ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
+
+
     directions_clone = torch.clone(directions)
     basis = create_orthonormal_basis(directions=directions_clone)
     ms_wc = torch.matmul(ms, basis)
-    print(ms_wc.shape)
+    print(origins.shape)
+    origins_expanded = torch.clone(origins).unsqueeze(2).expand(-1, -1, 6, -1)
+    directions_expanded = torch.clone(directions).unsqueeze(2).expand(-1, -1, 6, -1)
 
-
-    print(basis.shape)
-
-
+    means = origins_expanded + directions_expanded * ms_wc
+    print(means.shape)
 
 
     means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
