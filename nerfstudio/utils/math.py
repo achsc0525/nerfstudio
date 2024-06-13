@@ -287,7 +287,7 @@ def conical_frustum_to_gaussian_multisamples(
     # Create standard deviation
     # ToDo: multiply or divide by scale parameter 0.5
     sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=2) * radius) * np.sqrt(2) * 0.5
-    sigmas = sigmas.reshape(sigmas.shape[:1] + (sigmas.shape[1] * sigmas.shape[2], sigmas.shape[-1]))
+    sigmas = sigmas.reshape(sigmas.shape[:1] + (sigmas.shape[1] * sigmas.shape[2], 1))
 
     return GaussiansMultisamples(mean=means, sigma=sigmas)
 
