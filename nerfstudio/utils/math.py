@@ -242,6 +242,8 @@ def conical_frustum_to_gaussian_multisamples(
         e3 = direction_tensor / d_norm
 
         rand_vector = torch.tensor([1.0, 0.0, 0.0], device=direction_tensor.device)
+        if torch.all(torch.eq(d_norm, rand_vector)):
+            rand_vector = torch.tensor([0, 1.0, 0.0], device=direction_tensor.device)
         rand_vector = rand_vector.expand_as(e3)
         e2 = torch.cross(e3, rand_vector)
         e2 /= torch.norm(e2, dim=-1, keepdim=True)
