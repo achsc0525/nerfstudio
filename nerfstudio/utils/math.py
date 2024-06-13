@@ -106,15 +106,15 @@ class Gaussians:
     cov: Float[Tensor, "*batch dim dim"]
 
 @dataclass
-class GaussianMultisamples:
+class GaussiansMultisamples:
     """Stores Gaussians
 
     Args:
         mean: Mean of Gaussian
         sigma: Variances of Gaussian
     """
-    mean: Float[Tensor, "*batch dim dim"]
-    sigma: Float[Tensor, "*batch dim dim"]
+    mean: Float[Tensor, "*batch dim"]
+    sigma: Float[Tensor, "*batch dim"]
 
 def compute_3d_gaussian(
     directions: Float[Tensor, "*batch 3"],
@@ -203,7 +203,7 @@ def conical_frustum_to_gaussian_multisamples(
     starts: Float[Tensor, "*batch 1"],
     ends: Float[Tensor, "*batch 1"],
     radius: Float[Tensor, "*batch 1"],
-) -> GaussianMultisamples:
+) -> GaussiansMultisamples:
     """Approximates conical frustums with a Gaussian distributions.
 
     Uses stable parameterization described in mip-NeRF publication.
@@ -283,11 +283,13 @@ def conical_frustum_to_gaussian_multisamples(
 
     # Create means of Gaussians
     means = origins_expanded + directions_expanded * ms_wc
+    means = means.reshape(means.shape[:1] + (means.shape[1] * means.shape[2], means.shape[-1]))
     # Create standard deviation
     # ToDo: multiply or divide by scale parameter 0.5
     sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=2) * radius) * np.sqrt(2) * 0.5
+    sigmas = sigmas.reshape(sigmas.shape[:1] + (sigmas.shape[1] * sigmas.shape[2], sigmas.shape[-1]))
 
-    return GaussianMultisamples(mean=means, sigma=sigmas)
+    return GaussiansMultisamples(mean=means, sigma=sigmas)
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
     """Computes the expected value of sin(y) where y ~ N(x_means, x_vars)
