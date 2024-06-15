@@ -73,7 +73,7 @@ class NerfactoModelConfig(ModelConfig):
     """Maximum resolution of the hashmap for the base mlp."""
     log2_hashmap_size: int = 19
     """Size of the hashmap for the base mlp"""
-    features_per_level: int = 2
+    features_per_level_proposal: int = 2
     """How many hashgrid features per level"""
     num_proposal_samples_per_ray: Tuple[int, ...] = (256, 96)
     """Number of samples per ray for each proposal network."""
@@ -159,7 +159,7 @@ class NerfactoModel(Model):
             num_levels=self.config.num_levels,
             max_res=self.config.max_res,
             base_res=self.config.base_res,
-            features_per_level=self.config.features_per_level,
+            features_per_level=self.config.features_per_level_proposal,
             log2_hashmap_size=self.config.log2_hashmap_size,
             hidden_dim_color=self.config.hidden_dim_color,
             hidden_dim_transient=self.config.hidden_dim_transient,
