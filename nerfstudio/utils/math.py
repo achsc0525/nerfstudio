@@ -204,9 +204,9 @@ def conical_frustum_to_gaussian_multisamples(
     ends: Float[Tensor, "*batch 1"],
     radius: Float[Tensor, "*batch 1"],
 ) -> GaussiansMultisamples:
-    """Approximates conical frustums with a Gaussian distributions.
+    """Approximates conical frustums with a Gaussian multisamples.
 
-    Uses stable parameterization described in mip-NeRF publication.
+    Uses stable parameterization described in Zip-NeRF publication.
 
     Args:
         origins: Origins of cones.
@@ -216,7 +216,7 @@ def conical_frustum_to_gaussian_multisamples(
         radius: Radii of cone a distance of 1 from the origin.
 
     Returns:
-        Gaussians: Approximation of conical frustums
+        Multiple samples Gaussians: Approximation of conical frustums
     """
     def theta_angles(x):
         return (x * torch.pi) / 3
