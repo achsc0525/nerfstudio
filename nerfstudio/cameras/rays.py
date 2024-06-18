@@ -23,7 +23,7 @@ import torch
 from jaxtyping import Float, Int, Shaped
 from torch import Tensor
 
-from nerfstudio.utils.math import Gaussians, GaussiansMultisamples,conical_frustum_to_gaussian, conical_frustum_to_gaussian_multisamples
+from nerfstudio.utils.math import Gaussians, GaussianMultisamples,conical_frustum_to_gaussian, conical_frustum_to_gaussian_multisamples
 from nerfstudio.utils.tensor_dataclass import TensorDataclass
 
 TORCH_DEVICE = Union[str, torch.device]
@@ -87,7 +87,7 @@ class Frustums(TensorDataclass):
             radius=cone_radius,
         )
 
-    def get_gaussian_blob_multisamples(self) -> GaussiansMultisamples:
+    def get_gaussian_blob_multisamples(self) -> GaussianMultisamples:
         """Calculates guassian approximation of conical frustum.
 
         Returns:
