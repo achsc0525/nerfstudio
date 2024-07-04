@@ -29,8 +29,10 @@ from nerfstudio.cameras.camera_optimizers import CameraOptimizer, CameraOptimize
 from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes, TrainingCallbackLocation
 from nerfstudio.field_components.field_heads import FieldHeadNames
+# from nerfstudio.field_components.spatial_distortions import SceneContraction
+from zip_nerf_mp.utils.spatial_distortions import SceneContractionMultisamples
 from nerfstudio.field_components.spatial_distortions import SceneContraction
-from nerfstudio.fields.density_fields import HashMLPDensityField
+# from nerfstudio.fields.density_fields import HashMLPDensityField
 from nerfstudio.fields.nerfacto_field import NerfactoField
 from nerfstudio.model_components.losses import (
     MSELoss,
@@ -46,6 +48,10 @@ from nerfstudio.model_components.scene_colliders import NearFarCollider
 from nerfstudio.model_components.shaders import NormalsShader
 from nerfstudio.models.base_model import Model, ModelConfig
 from nerfstudio.utils import colormaps
+
+from zip_nerf_mp.model_components.ray_samplers import ZipNerfProposalNetworkSampler
+from zip_nerf_mp.model_components.density_field import HashMLPDensityFieldGaussMs
+
 
 
 @dataclass
@@ -89,8 +95,10 @@ class NerfactoModelConfig(ModelConfig):
     """Use the same proposal network. Otherwise use different ones."""
     proposal_net_args_list: List[Dict] = field(
         default_factory=lambda: [
-            {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 128, "use_linear": False},
-            {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 256, "use_linear": False},
+            # {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 128, "use_linear": False},
+            # {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 256, "use_linear": False},
+            {"num_layers": 3, "hidden_dim": 128, "log2_hashmap_size": 17, "num_levels": 8, "max_res": 512, "features_per_level": 1, "use_linear": False},
+            {"num_layers": 3, "hidden_dim": 128, "log2_hashmap_size": 17, "num_levels": 8, "max_res": 1024, "features_per_level": 1, "use_linear": False}
         ]
     )
     """Arguments for the proposal density fields."""
@@ -148,7 +156,7 @@ class NerfactoModel(Model):
         if self.config.disable_scene_contraction:
             scene_contraction = None
         else:
-            scene_contraction = SceneContraction(order=float("inf"))
+            scene_contraction = SceneContractionMultisamples(order=float("inf"))
 
         appearance_embedding_dim = self.config.appearance_embed_dim if self.config.use_appearance_embedding else 0
 
@@ -182,7 +190,7 @@ class NerfactoModel(Model):
         if self.config.use_same_proposal_network:
             assert len(self.config.proposal_net_args_list) == 1, "Only one proposal network is allowed."
             prop_net_args = self.config.proposal_net_args_list[0]
-            network = HashMLPDensityField(
+            network = HashMLPDensityFieldGaussMs(
                 self.scene_box.aabb,
                 spatial_distortion=scene_contraction,
                 **prop_net_args,
@@ -194,7 +202,7 @@ class NerfactoModel(Model):
         else:
             for i in range(num_prop_nets):
                 prop_net_args = self.config.proposal_net_args_list[min(i, len(self.config.proposal_net_args_list) - 1)]
-                network = HashMLPDensityField(
+                network = HashMLPDensityFieldGaussMs(
                     self.scene_box.aabb,
                     spatial_distortion=scene_contraction,
                     **prop_net_args,
@@ -202,7 +210,7 @@ class NerfactoModel(Model):
                     implementation=self.config.implementation,
                 )
                 self.proposal_networks.append(network)
-            self.density_fns.extend([network.density_fn for network in self.proposal_networks])
+            self.density_fns.extend([network.get_density for network in self.proposal_networks])
 
         # Samplers
         def update_schedule(step):
@@ -217,7 +225,7 @@ class NerfactoModel(Model):
         if self.config.proposal_initial_sampler == "uniform":
             initial_sampler = UniformSampler(single_jitter=self.config.use_single_jitter)
 
-        self.proposal_sampler = ProposalNetworkSampler(
+        self.proposal_sampler = ZipNerfProposalNetworkSampler(
             num_nerf_samples_per_ray=self.config.num_nerf_samples_per_ray,
             num_proposal_samples_per_ray=self.config.num_proposal_samples_per_ray,
             num_proposal_network_iterations=self.config.num_proposal_iterations,
