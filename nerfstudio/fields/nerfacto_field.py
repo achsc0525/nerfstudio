@@ -39,6 +39,8 @@ from nerfstudio.field_components.spatial_distortions import SpatialDistortion
 from nerfstudio.fields.base_field import Field, get_normalized_directions
 from nerfstudio.field_components.encodings import HashEncoding
 
+from zip_nerf_mp.model_components.density_field import create_feature
+from nerfstudio.utils.math import GaussianMultisamples
 
 class NerfactoField(Field):
     """Compound Field
@@ -131,25 +133,6 @@ class NerfactoField(Field):
         self.position_encoding = NeRFEncoding(
             in_dim=3, num_frequencies=2, min_freq_exp=0, max_freq_exp=2 - 1, implementation=implementation
         )
-        # self.hash_encoding_nerf = HashEncoding(
-        #     num_levels=num_levels,
-        #     min_res=base_res,
-        #     max_res=max_res,
-        #     log2_hashmap_size=log2_hashmap_size,
-        #     features_per_level=features_per_level,
-        #     implementation=implementation,
-        # )
-        #
-        # self.base_network = MLP(
-        #     in_dim=self.hash_encoding_nerf.get_out_dim(),
-        #     num_layers=num_layers,
-        #     layer_width=hidden_dim_color,
-        #     out_dim=1 + geo_feat_dim,
-        #     activation=torch.nn.ReLU(),
-        #     out_activation=None,
-        #     implementation=implementation,
-        #     skip_connections=(2, )
-        # )
 
         self.mlp_base = MLPWithHashEncoding(
             num_levels=num_levels,
@@ -165,50 +148,26 @@ class NerfactoField(Field):
             implementation=implementation,
         )
 
-        # # transients
-        # if self.use_transient_embedding:
-        #     self.transient_embedding_dim = transient_embedding_dim
-        #     self.embedding_transient = Embedding(self.num_images, self.transient_embedding_dim)
-        #     self.mlp_transient = MLP(
-        #         in_dim=self.geo_feat_dim + self.transient_embedding_dim,
-        #         num_layers=num_layers_transient,
-        #         layer_width=hidden_dim_transient,
-        #         out_dim=hidden_dim_transient,
-        #         activation=nn.ReLU(),
-        #         out_activation=None,
-        #         implementation=implementation,
-        #     )
-        #     self.field_head_transient_uncertainty = UncertaintyFieldHead(in_dim=self.mlp_transient.get_out_dim())
-        #     self.field_head_transient_rgb = TransientRGBFieldHead(in_dim=self.mlp_transient.get_out_dim())
-        #     self.field_head_transient_density = TransientDensityFieldHead(in_dim=self.mlp_transient.get_out_dim())
+        # self.hash_encoding_nerf = HashEncoding(
+        #     num_levels=num_levels,
+        #     min_res=base_res,
+        #     max_res=max_res,
+        #     log2_hashmap_size=log2_hashmap_size,
+        #     features_per_level=features_per_level,
+        #     implementation=implementation,
+        # )
         #
-        # # semantics
-        # if self.use_semantics:
-        #     self.mlp_semantics = MLP(
-        #         in_dim=self.geo_feat_dim,
-        #         num_layers=2,
-        #         layer_width=64,
-        #         out_dim=hidden_dim_transient,
-        #         activation=nn.ReLU(),
-        #         out_activation=None,
-        #         implementation=implementation,
-        #     )
-        #     self.field_head_semantics = SemanticFieldHead(
-        #         in_dim=self.mlp_semantics.get_out_dim(), num_classes=num_semantic_classes
-        #     )
-        #
-        # # predicted normals
-        # if self.use_pred_normals:
-        #     self.mlp_pred_normals = MLP(
-        #         in_dim=self.geo_feat_dim + self.position_encoding.get_out_dim(),
-        #         num_layers=3,
-        #         layer_width=64,
-        #         out_dim=hidden_dim_transient,
-        #         activation=nn.ReLU(),
-        #         out_activation=None,
-        #         implementation=implementation,
-        #     )
-        #     self.field_head_pred_normals = PredNormalsFieldHead(in_dim=self.mlp_pred_normals.get_out_dim())
+        # self.base_network = MLP(
+        #     in_dim=self.hash_encoding_nerf.get_out_dim(),
+        #     num_layers=num_layers,
+        #     layer_width=hidden_dim,
+        #     out_dim=1 + geo_feat_dim,
+        #     activation=torch.nn.ReLU(),
+        #     out_activation=None,
+        #     implementation=implementation,
+        #     skip_connections=(2, )
+        # )
+
 
         self.mlp_head = MLP(
             in_dim=self.direction_encoding.get_out_dim() + self.geo_feat_dim,
@@ -245,6 +204,22 @@ class NerfactoField(Field):
         density = self.average_init_density * trunc_exp(density_before_activation.to(positions))
         density = density * selector[..., None]
         return density, base_mlp_out
+
+    # def get_density(self, ray_samples: RaySamples) -> Tuple[Tensor, Tensor]:
+    #     """Computes and returns the densities."""
+    #     ms = ray_samples.frustums.get_gaussian_blob_multisamples()
+    #     contracted_ms: GaussianMultisamples = self.spatial_distortion(ms)
+    #     original_shape = contracted_ms.sigma.shape
+    #     f = create_feature(hash_encoding=self.hash_encoding_nerf,
+    #                        contracted_ms=contracted_ms,
+    #                        base_res=torch.tensor(self.base_res, device=ms.mean.device),
+    #                        max_res=torch.tensor(self.max_res, device=ms.mean.device))
+    #
+    #     h = self.base_network(f)
+    #     h = h.reshape(original_shape[:2] + (1 + self.geo_feat_dim, ))
+    #     density, base_mlp_out = torch.split(h, [1, self.base_network.get_out_dim() - 1], dim=-1)
+    #     return density, base_mlp_out
+
 
     def get_outputs(
         self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
