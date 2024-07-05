@@ -197,6 +197,7 @@ def conical_frustum_to_gaussian(
     radius_variance = radius**2 * ((mu**2) / 4 + (5 / 12) * hw**2 - 4 / 15 * (hw**4) / (3 * mu**2 + hw**2))
     return compute_3d_gaussian(directions, means, dir_variance, radius_variance)
 
+
 def conical_frustum_to_gaussian_multisamples(
     origins: Float[Tensor, "*batch 3"],
     directions: Float[Tensor, "*batch 3"],
@@ -228,9 +229,6 @@ def conical_frustum_to_gaussian_multisamples(
               theta_angles(5),
               theta_angles(1)])
 
-    mu = (starts + ends) / 2.0
-    hw = (ends - starts) / 2.0
-
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
 
@@ -241,25 +239,33 @@ def conical_frustum_to_gaussian_multisamples(
 
     def construct_multisample(index):
         tj = t_j(index)
-        x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
-        y = radius * tj * np.sin(thetas[index] / np.sqrt(2))
+        x = radius * tj * torch.cos(thetas[index] / torch.sqrt(torch.tensor(2, device=tj.device)))
+        y = radius * tj * torch.sin(thetas[index] / torch.sqrt(torch.tensor(2, device=tj.device)))
         stacked = torch.stack((x, y, tj), dim=-1)
         return stacked, tj
 
-    def create_orthonormal_basis(direction_tensor):
-        batch_size, num_directions, direction = direction_tensor.shape
+    def create_orthonormal_basis(direction_tensor: torch.tensor) -> torch.tensor:
         d_norm = torch.norm(direction_tensor, dim=-1, keepdim=True)
-        e3 = direction_tensor / d_norm
+        e3: Tensor = direction_tensor / d_norm
 
-        rand_vector = torch.tensor([1.0, 0.0, 0.0], device=direction_tensor.device)
-        if torch.all(torch.eq(d_norm, rand_vector)):
-            rand_vector = torch.tensor([0, 1.0, 0.0], device=direction_tensor.device)
+        rand_vector = torch.tensor([1.0, 0.0, 0.0], device=direction_tensor.device, dtype=direction_tensor.dtype)
         rand_vector = rand_vector.expand_as(e3)
+        replacement = torch.tensor([0.0, 1.0, 0.0], device=direction_tensor.device, dtype=direction_tensor.dtype)
+        replacement = replacement.expand_as(e3)
+
+        compared = (e3 == rand_vector)
+        matches = torch.all(compared, dim=-1)
+        matches_expanded = matches.unsqueeze(-1).expand_as(rand_vector)
+        rand_vector = torch.where(matches_expanded, replacement, rand_vector)
+
         e2 = torch.cross(e3, rand_vector)
         e2 /= torch.norm(e2, dim=-1, keepdim=True)
 
         e1 = torch.cross(e2, e3)
-        return torch.stack((e1, e2, e3), dim=-1)
+        # ToDo: Need to be transposed?
+        stacked = torch.stack((e1, e2, e3), dim=-1)
+        stacked = torch.transpose(stacked, -2, -1)
+        return stacked
 
     first, t0 = construct_multisample(0)
     second, t1 = construct_multisample(1)
