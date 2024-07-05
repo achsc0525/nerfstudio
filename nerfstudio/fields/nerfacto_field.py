@@ -37,6 +37,7 @@ from nerfstudio.field_components.field_heads import (
 from nerfstudio.field_components.mlp import MLP, MLPWithHashEncoding
 from nerfstudio.field_components.spatial_distortions import SpatialDistortion
 from nerfstudio.fields.base_field import Field, get_normalized_directions
+from nerfstudio.field_components.encodings import HashEncoding
 
 
 class NerfactoField(Field):
@@ -108,11 +109,11 @@ class NerfactoField(Field):
 
         self.spatial_distortion = spatial_distortion
         self.num_images = num_images
-        self.appearance_embedding_dim = appearance_embedding_dim
-        if self.appearance_embedding_dim > 0:
-            self.embedding_appearance = Embedding(self.num_images, self.appearance_embedding_dim)
-        else:
-            self.embedding_appearance = None
+        # self.appearance_embedding_dim = appearance_embedding_dim
+        # if self.appearance_embedding_dim > 0:
+        #     self.embedding_appearance = Embedding(self.num_images, self.appearance_embedding_dim)
+        # else:
+        #     self.embedding_appearance = None
         self.use_average_appearance_embedding = use_average_appearance_embedding
         self.use_transient_embedding = use_transient_embedding
         self.use_semantics = use_semantics
@@ -130,6 +131,25 @@ class NerfactoField(Field):
         self.position_encoding = NeRFEncoding(
             in_dim=3, num_frequencies=2, min_freq_exp=0, max_freq_exp=2 - 1, implementation=implementation
         )
+        # self.hash_encoding_nerf = HashEncoding(
+        #     num_levels=num_levels,
+        #     min_res=base_res,
+        #     max_res=max_res,
+        #     log2_hashmap_size=log2_hashmap_size,
+        #     features_per_level=features_per_level,
+        #     implementation=implementation,
+        # )
+        #
+        # self.base_network = MLP(
+        #     in_dim=self.hash_encoding_nerf.get_out_dim(),
+        #     num_layers=num_layers,
+        #     layer_width=hidden_dim_color,
+        #     out_dim=1 + geo_feat_dim,
+        #     activation=torch.nn.ReLU(),
+        #     out_activation=None,
+        #     implementation=implementation,
+        #     skip_connections=(2, )
+        # )
 
         self.mlp_base = MLPWithHashEncoding(
             num_levels=num_levels,
@@ -145,53 +165,53 @@ class NerfactoField(Field):
             implementation=implementation,
         )
 
-        # transients
-        if self.use_transient_embedding:
-            self.transient_embedding_dim = transient_embedding_dim
-            self.embedding_transient = Embedding(self.num_images, self.transient_embedding_dim)
-            self.mlp_transient = MLP(
-                in_dim=self.geo_feat_dim + self.transient_embedding_dim,
-                num_layers=num_layers_transient,
-                layer_width=hidden_dim_transient,
-                out_dim=hidden_dim_transient,
-                activation=nn.ReLU(),
-                out_activation=None,
-                implementation=implementation,
-            )
-            self.field_head_transient_uncertainty = UncertaintyFieldHead(in_dim=self.mlp_transient.get_out_dim())
-            self.field_head_transient_rgb = TransientRGBFieldHead(in_dim=self.mlp_transient.get_out_dim())
-            self.field_head_transient_density = TransientDensityFieldHead(in_dim=self.mlp_transient.get_out_dim())
-
-        # semantics
-        if self.use_semantics:
-            self.mlp_semantics = MLP(
-                in_dim=self.geo_feat_dim,
-                num_layers=2,
-                layer_width=64,
-                out_dim=hidden_dim_transient,
-                activation=nn.ReLU(),
-                out_activation=None,
-                implementation=implementation,
-            )
-            self.field_head_semantics = SemanticFieldHead(
-                in_dim=self.mlp_semantics.get_out_dim(), num_classes=num_semantic_classes
-            )
-
-        # predicted normals
-        if self.use_pred_normals:
-            self.mlp_pred_normals = MLP(
-                in_dim=self.geo_feat_dim + self.position_encoding.get_out_dim(),
-                num_layers=3,
-                layer_width=64,
-                out_dim=hidden_dim_transient,
-                activation=nn.ReLU(),
-                out_activation=None,
-                implementation=implementation,
-            )
-            self.field_head_pred_normals = PredNormalsFieldHead(in_dim=self.mlp_pred_normals.get_out_dim())
+        # # transients
+        # if self.use_transient_embedding:
+        #     self.transient_embedding_dim = transient_embedding_dim
+        #     self.embedding_transient = Embedding(self.num_images, self.transient_embedding_dim)
+        #     self.mlp_transient = MLP(
+        #         in_dim=self.geo_feat_dim + self.transient_embedding_dim,
+        #         num_layers=num_layers_transient,
+        #         layer_width=hidden_dim_transient,
+        #         out_dim=hidden_dim_transient,
+        #         activation=nn.ReLU(),
+        #         out_activation=None,
+        #         implementation=implementation,
+        #     )
+        #     self.field_head_transient_uncertainty = UncertaintyFieldHead(in_dim=self.mlp_transient.get_out_dim())
+        #     self.field_head_transient_rgb = TransientRGBFieldHead(in_dim=self.mlp_transient.get_out_dim())
+        #     self.field_head_transient_density = TransientDensityFieldHead(in_dim=self.mlp_transient.get_out_dim())
+        #
+        # # semantics
+        # if self.use_semantics:
+        #     self.mlp_semantics = MLP(
+        #         in_dim=self.geo_feat_dim,
+        #         num_layers=2,
+        #         layer_width=64,
+        #         out_dim=hidden_dim_transient,
+        #         activation=nn.ReLU(),
+        #         out_activation=None,
+        #         implementation=implementation,
+        #     )
+        #     self.field_head_semantics = SemanticFieldHead(
+        #         in_dim=self.mlp_semantics.get_out_dim(), num_classes=num_semantic_classes
+        #     )
+        #
+        # # predicted normals
+        # if self.use_pred_normals:
+        #     self.mlp_pred_normals = MLP(
+        #         in_dim=self.geo_feat_dim + self.position_encoding.get_out_dim(),
+        #         num_layers=3,
+        #         layer_width=64,
+        #         out_dim=hidden_dim_transient,
+        #         activation=nn.ReLU(),
+        #         out_activation=None,
+        #         implementation=implementation,
+        #     )
+        #     self.field_head_pred_normals = PredNormalsFieldHead(in_dim=self.mlp_pred_normals.get_out_dim())
 
         self.mlp_head = MLP(
-            in_dim=self.direction_encoding.get_out_dim() + self.geo_feat_dim + self.appearance_embedding_dim,
+            in_dim=self.direction_encoding.get_out_dim() + self.geo_feat_dim,
             num_layers=num_layers_color,
             layer_width=hidden_dim_color,
             out_dim=3,
@@ -241,62 +261,62 @@ class NerfactoField(Field):
         outputs_shape = ray_samples.frustums.directions.shape[:-1]
 
         # appearance
-        embedded_appearance = None
-        if self.embedding_appearance is not None:
-            if self.training:
-                embedded_appearance = self.embedding_appearance(camera_indices)
-            else:
-                if self.use_average_appearance_embedding:
-                    embedded_appearance = torch.ones(
-                        (*directions.shape[:-1], self.appearance_embedding_dim), device=directions.device
-                    ) * self.embedding_appearance.mean(dim=0)
-                else:
-                    embedded_appearance = torch.zeros(
-                        (*directions.shape[:-1], self.appearance_embedding_dim), device=directions.device
-                    )
+        # embedded_appearance = None
+        # if self.embedding_appearance is not None:
+        #     if self.training:
+        #         embedded_appearance = self.embedding_appearance(camera_indices)
+        #     else:
+        #         if self.use_average_appearance_embedding:
+        #             embedded_appearance = torch.ones(
+        #                 (*directions.shape[:-1], self.appearance_embedding_dim), device=directions.device
+        #             ) * self.embedding_appearance.mean(dim=0)
+        #         else:
+        #             embedded_appearance = torch.zeros(
+        #                 (*directions.shape[:-1], self.appearance_embedding_dim), device=directions.device
+        #             )
 
         # transients
-        if self.use_transient_embedding and self.training:
-            embedded_transient = self.embedding_transient(camera_indices)
-            transient_input = torch.cat(
-                [
-                    density_embedding.view(-1, self.geo_feat_dim),
-                    embedded_transient.view(-1, self.transient_embedding_dim),
-                ],
-                dim=-1,
-            )
-            x = self.mlp_transient(transient_input).view(*outputs_shape, -1).to(directions)
-            outputs[FieldHeadNames.UNCERTAINTY] = self.field_head_transient_uncertainty(x)
-            outputs[FieldHeadNames.TRANSIENT_RGB] = self.field_head_transient_rgb(x)
-            outputs[FieldHeadNames.TRANSIENT_DENSITY] = self.field_head_transient_density(x)
+        # if self.use_transient_embedding and self.training:
+        #     embedded_transient = self.embedding_transient(camera_indices)
+        #     transient_input = torch.cat(
+        #         [
+        #             density_embedding.view(-1, self.geo_feat_dim),
+        #             embedded_transient.view(-1, self.transient_embedding_dim),
+        #         ],
+        #         dim=-1,
+        #     )
+        #     x = self.mlp_transient(transient_input).view(*outputs_shape, -1).to(directions)
+        #     outputs[FieldHeadNames.UNCERTAINTY] = self.field_head_transient_uncertainty(x)
+        #     outputs[FieldHeadNames.TRANSIENT_RGB] = self.field_head_transient_rgb(x)
+        #     outputs[FieldHeadNames.TRANSIENT_DENSITY] = self.field_head_transient_density(x)
 
         # semantics
-        if self.use_semantics:
-            semantics_input = density_embedding.view(-1, self.geo_feat_dim)
-            if not self.pass_semantic_gradients:
-                semantics_input = semantics_input.detach()
-
-            x = self.mlp_semantics(semantics_input).view(*outputs_shape, -1).to(directions)
-            outputs[FieldHeadNames.SEMANTICS] = self.field_head_semantics(x)
+        # if self.use_semantics:
+        #     semantics_input = density_embedding.view(-1, self.geo_feat_dim)
+        #     if not self.pass_semantic_gradients:
+        #         semantics_input = semantics_input.detach()
+        #
+        #     x = self.mlp_semantics(semantics_input).view(*outputs_shape, -1).to(directions)
+        #     outputs[FieldHeadNames.SEMANTICS] = self.field_head_semantics(x)
 
         # predicted normals
-        if self.use_pred_normals:
-            positions = ray_samples.frustums.get_positions()
-
-            positions_flat = self.position_encoding(positions.view(-1, 3))
-            pred_normals_inp = torch.cat([positions_flat, density_embedding.view(-1, self.geo_feat_dim)], dim=-1)
-
-            x = self.mlp_pred_normals(pred_normals_inp).view(*outputs_shape, -1).to(directions)
-            outputs[FieldHeadNames.PRED_NORMALS] = self.field_head_pred_normals(x)
+        # if self.use_pred_normals:
+        #     positions = ray_samples.frustums.get_positions()
+        #
+        #     positions_flat = self.position_encoding(positions.view(-1, 3))
+        #     pred_normals_inp = torch.cat([positions_flat, density_embedding.view(-1, self.geo_feat_dim)], dim=-1)
+        #
+        #     x = self.mlp_pred_normals(pred_normals_inp).view(*outputs_shape, -1).to(directions)
+        #     outputs[FieldHeadNames.PRED_NORMALS] = self.field_head_pred_normals(x)
 
         h = torch.cat(
             [
                 d,
                 density_embedding.view(-1, self.geo_feat_dim),
-            ]
-            + (
-                [embedded_appearance.view(-1, self.appearance_embedding_dim)] if embedded_appearance is not None else []
-            ),
+            ],
+            # + (
+            #     [embedded_appearance.view(-1, self.appearance_embedding_dim)] if embedded_appearance is not None else []
+            # ),
             dim=-1,
         )
         rgb = self.mlp_head(h).view(*outputs_shape, -1).to(directions)

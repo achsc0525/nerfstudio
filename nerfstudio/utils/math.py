@@ -228,9 +228,6 @@ def conical_frustum_to_gaussian_multisamples(
               theta_angles(5),
               theta_angles(1)])
 
-    mu = (starts + ends) / 2.0
-    hw = (ends - starts) / 2.0
-
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
 
