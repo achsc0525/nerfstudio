@@ -226,10 +226,11 @@ def conical_frustum_to_gaussian_multisamples(
               theta_angles(4),
               theta_angles(3),
               theta_angles(5),
-              theta_angles(1)])
+              theta_angles(1)], device=origins.device)
 
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
+
 
     def t_j(j):
         numerator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
@@ -258,8 +259,6 @@ def conical_frustum_to_gaussian_multisamples(
         rand_vector = torch.where(matches_expanded, replacement, rand_vector)
 
         e2 = torch.cross(e3, rand_vector)
-        e2 /= torch.norm(e2, dim=-1, keepdim=True)
-
         e1 = torch.cross(e2, e3)
         # ToDo: Need to be transposed?
         stacked = torch.stack((e1, e2, e3), dim=-1)
@@ -284,16 +283,14 @@ def conical_frustum_to_gaussian_multisamples(
 
     # expand origins and directions so it matches the dimensions of the multisamples
     origins_expanded = torch.clone(origins).unsqueeze(2).expand(-1, -1, 6, -1)
-    directions_expanded = torch.clone(directions).unsqueeze(2).expand(-1, -1, 6, -1)
 
     # Create means of Gaussians
-    means = origins_expanded + directions_expanded * ms_wc
+    means = origins_expanded + ms_wc
     # means = means.reshape(means.shape[:1] + (means.shape[1] * means.shape[2], means.shape[-1]))
     # Create standard deviation
-    # ToDo: multiply or divide by scale parameter 0.5
-    sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) * np.sqrt(2) * 0.5
+    sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
     sigmas = sigmas.reshape(means.shape[:-1] + (1, ))
-    # sigmas = sigmas.reshape(sigmas.shape[:1] + (sigmas.shape[1] * sigmas.shape[2], 1))
+
     return GaussianMultisamples(mean=means, sigma=sigmas)
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
