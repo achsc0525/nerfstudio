@@ -28,7 +28,7 @@ from nerfstudio.data.scene_box import OrientedBox
 
 
 def components_from_spherical_harmonics(
-    levels: int, directions: Float[Tensor, "*batch 3"]
+        levels: int, directions: Float[Tensor, "*batch 3"]
 ) -> Float[Tensor, "*batch components"]:
     """
     Returns value for each component of spherical harmonics.
@@ -37,7 +37,7 @@ def components_from_spherical_harmonics(
         levels: Number of spherical harmonic levels to compute.
         directions: Spherical harmonic coefficients
     """
-    num_components = levels**2
+    num_components = levels ** 2
     components = torch.zeros((*directions.shape[:-1], num_components), device=directions.device)
 
     assert 1 <= levels <= 5, f"SH levels must be in [1,4], got {levels}"
@@ -47,9 +47,9 @@ def components_from_spherical_harmonics(
     y = directions[..., 1]
     z = directions[..., 2]
 
-    xx = x**2
-    yy = y**2
-    zz = z**2
+    xx = x ** 2
+    yy = y ** 2
+    zz = z ** 2
 
     # l0
     components[..., 0] = 0.28209479177387814
@@ -105,6 +105,7 @@ class Gaussians:
     mean: Float[Tensor, "*batch dim"]
     cov: Float[Tensor, "*batch dim dim"]
 
+
 @dataclass
 class GaussianMultisamples:
     """Stores Gaussians
@@ -116,11 +117,12 @@ class GaussianMultisamples:
     mean: Float[Tensor, "*batch dim"]
     sigma: Float[Tensor, "*batch dim"]
 
+
 def compute_3d_gaussian(
-    directions: Float[Tensor, "*batch 3"],
-    means: Float[Tensor, "*batch 3"],
-    dir_variance: Float[Tensor, "*batch 1"],
-    radius_variance: Float[Tensor, "*batch 1"],
+        directions: Float[Tensor, "*batch 3"],
+        means: Float[Tensor, "*batch 3"],
+        dir_variance: Float[Tensor, "*batch 1"],
+        radius_variance: Float[Tensor, "*batch 1"],
 ) -> Gaussians:
     """Compute gaussian along ray.
 
@@ -136,7 +138,7 @@ def compute_3d_gaussian(
 
     dir_outer_product = directions[..., :, None] * directions[..., None, :]
     eye = torch.eye(directions.shape[-1], device=directions.device)
-    dir_mag_sq = torch.clamp(torch.sum(directions**2, dim=-1, keepdim=True), min=1e-10)
+    dir_mag_sq = torch.clamp(torch.sum(directions ** 2, dim=-1, keepdim=True), min=1e-10)
     null_outer_product = eye - directions[..., :, None] * (directions / dir_mag_sq)[..., None, :]
     dir_cov_diag = dir_variance[..., None] * dir_outer_product[..., :, :]
     radius_cov_diag = radius_variance[..., None] * null_outer_product[..., :, :]
@@ -145,11 +147,11 @@ def compute_3d_gaussian(
 
 
 def cylinder_to_gaussian(
-    origins: Float[Tensor, "*batch 3"],
-    directions: Float[Tensor, "*batch 3"],
-    starts: Float[Tensor, "*batch 1"],
-    ends: Float[Tensor, "*batch 1"],
-    radius: Float[Tensor, "*batch 1"],
+        origins: Float[Tensor, "*batch 3"],
+        directions: Float[Tensor, "*batch 3"],
+        starts: Float[Tensor, "*batch 1"],
+        ends: Float[Tensor, "*batch 1"],
+        radius: Float[Tensor, "*batch 1"],
 ) -> Gaussians:
     """Approximates cylinders with a Gaussian distributions.
 
@@ -165,16 +167,16 @@ def cylinder_to_gaussian(
     """
     means = origins + directions * ((starts + ends) / 2.0)
     dir_variance = (ends - starts) ** 2 / 12
-    radius_variance = radius**2 / 4.0
+    radius_variance = radius ** 2 / 4.0
     return compute_3d_gaussian(directions, means, dir_variance, radius_variance)
 
 
 def conical_frustum_to_gaussian(
-    origins: Float[Tensor, "*batch 3"],
-    directions: Float[Tensor, "*batch 3"],
-    starts: Float[Tensor, "*batch 1"],
-    ends: Float[Tensor, "*batch 1"],
-    radius: Float[Tensor, "*batch 1"],
+        origins: Float[Tensor, "*batch 3"],
+        directions: Float[Tensor, "*batch 3"],
+        starts: Float[Tensor, "*batch 1"],
+        ends: Float[Tensor, "*batch 1"],
+        radius: Float[Tensor, "*batch 1"],
 ) -> Gaussians:
     """Approximates conical frustums with a Gaussian distributions.
 
@@ -192,17 +194,18 @@ def conical_frustum_to_gaussian(
     """
     mu = (starts + ends) / 2.0
     hw = (ends - starts) / 2.0
-    means = origins + directions * (mu + (2.0 * mu * hw**2.0) / (3.0 * mu**2.0 + hw**2.0))
-    dir_variance = (hw**2) / 3 - (4 / 15) * ((hw**4 * (12 * mu**2 - hw**2)) / (3 * mu**2 + hw**2) ** 2)
-    radius_variance = radius**2 * ((mu**2) / 4 + (5 / 12) * hw**2 - 4 / 15 * (hw**4) / (3 * mu**2 + hw**2))
+    means = origins + directions * (mu + (2.0 * mu * hw ** 2.0) / (3.0 * mu ** 2.0 + hw ** 2.0))
+    dir_variance = (hw ** 2) / 3 - (4 / 15) * ((hw ** 4 * (12 * mu ** 2 - hw ** 2)) / (3 * mu ** 2 + hw ** 2) ** 2)
+    radius_variance = radius ** 2 * ((mu ** 2) / 4 + (5 / 12) * hw ** 2 - 4 / 15 * (hw ** 4) / (3 * mu ** 2 + hw ** 2))
     return compute_3d_gaussian(directions, means, dir_variance, radius_variance)
 
+
 def conical_frustum_to_gaussian_multisamples(
-    origins: Float[Tensor, "*batch 3"],
-    directions: Float[Tensor, "*batch 3"],
-    starts: Float[Tensor, "*batch 1"],
-    ends: Float[Tensor, "*batch 1"],
-    radius: Float[Tensor, "*batch 1"],
+        origins: Float[Tensor, "*batch 3"],
+        directions: Float[Tensor, "*batch 3"],
+        starts: Float[Tensor, "*batch 1"],
+        ends: Float[Tensor, "*batch 1"],
+        radius: Float[Tensor, "*batch 1"],
 ) -> GaussianMultisamples:
     """Approximates conical frustums with a Gaussian multisamples.
 
@@ -218,23 +221,24 @@ def conical_frustum_to_gaussian_multisamples(
     Returns:
         Multiple samples Gaussians: Approximation of conical frustums
     """
+
     def theta_angles(x):
         return (x * torch.pi) / 3
 
     thetas = torch.tensor([0,
-              theta_angles(2),
-              theta_angles(4),
-              theta_angles(3),
-              theta_angles(5),
-              theta_angles(1)], device=origins.device)
+                                 theta_angles(2),
+                                 theta_angles(4),
+                                 theta_angles(3),
+                                 theta_angles(5),
+                                 theta_angles(1)], device=origins.device)
 
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
 
-
     def t_j(j):
-        numerator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
-        denominator = (t_delta**2 + 3*t_mu**2)
+        numerator = t_delta * (ends ** 2 + 2 * t_mu ** 2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt(
+            (t_delta ** 2 - t_mu ** 2) ** 2 + 4 * t_mu ** 4))
+        denominator = (t_delta ** 2 + 3 * t_mu ** 2)
         return starts + numerator / denominator
 
     def construct_multisample(index):
@@ -260,7 +264,6 @@ def conical_frustum_to_gaussian_multisamples(
 
         e2 = torch.cross(e3, rand_vector)
         e1 = torch.cross(e2, e3)
-        # ToDo: Need to be transposed?
         stacked = torch.stack((e1, e2, e3), dim=-1)
         stacked = torch.transpose(stacked, -2, -1)
         return stacked
@@ -275,9 +278,8 @@ def conical_frustum_to_gaussian_multisamples(
     # Create multisamples as stated in zip nerf paper equation 3
     ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
 
-    directions_clone = torch.clone(directions)
     # Create orthonormal basis
-    basis = create_orthonormal_basis(direction_tensor=directions_clone)
+    basis = create_orthonormal_basis(direction_tensor=directions)
     # scale by orthonormal basis and rotate into world coordinates
     ms_wc = torch.matmul(ms, basis)
 
@@ -289,9 +291,10 @@ def conical_frustum_to_gaussian_multisamples(
     # means = means.reshape(means.shape[:1] + (means.shape[1] * means.shape[2], means.shape[-1]))
     # Create standard deviation
     sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
-    sigmas = sigmas.reshape(means.shape[:-1] + (1, ))
+    sigmas = sigmas.reshape(means.shape[:-1] + (1,))
 
     return GaussianMultisamples(mean=means, sigma=sigmas)
+
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
     """Computes the expected value of sin(y) where y ~ N(x_means, x_vars)
@@ -308,11 +311,11 @@ def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
 
 # @torch_compile(dynamic=True, mode="reduce-overhead", backend="eager")
 def intersect_aabb(
-    origins: torch.Tensor,
-    directions: torch.Tensor,
-    aabb: torch.Tensor,
-    max_bound: float = 1e10,
-    invalid_value: float = 1e10,
+        origins: torch.Tensor,
+        directions: torch.Tensor,
+        aabb: torch.Tensor,
+        max_bound: float = 1e10,
+        invalid_value: float = 1e10,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Implementation of ray intersection with AABB box
@@ -348,11 +351,11 @@ def intersect_aabb(
 
 
 def intersect_obb(
-    origins: torch.Tensor,
-    directions: torch.Tensor,
-    obb: OrientedBox,
-    max_bound: float = 1e10,
-    invalid_value: float = 1e10,
+        origins: torch.Tensor,
+        directions: torch.Tensor,
+        obb: OrientedBox,
+        max_bound: float = 1e10,
+        invalid_value: float = 1e10,
 ):
     """
     Ray intersection with an oriented bounding box (OBB)
@@ -384,8 +387,8 @@ def intersect_obb(
 
 
 def safe_normalize(
-    vectors: Float[Tensor, "*batch_dim N"],
-    eps: float = 1e-10,
+        vectors: Float[Tensor, "*batch_dim N"],
+        eps: float = 1e-10,
 ) -> Float[Tensor, "*batch_dim N"]:
     """Normalizes vectors.
 
@@ -400,9 +403,9 @@ def safe_normalize(
 
 
 def masked_reduction(
-    input_tensor: Float[Tensor, "1 32 mult"],
-    mask: Bool[Tensor, "1 32 mult"],
-    reduction_type: Literal["image", "batch"],
+        input_tensor: Float[Tensor, "1 32 mult"],
+        mask: Bool[Tensor, "1 32 mult"],
+        reduction_type: Literal["image", "batch"],
 ) -> Tensor:
     """
     Whether to consolidate the input_tensor across the batch or across the image
@@ -429,7 +432,7 @@ def masked_reduction(
 
 
 def normalized_depth_scale_and_shift(
-    prediction: Float[Tensor, "1 32 mult"], target: Float[Tensor, "1 32 mult"], mask: Bool[Tensor, "1 32 mult"]
+        prediction: Float[Tensor, "1 32 mult"], target: Float[Tensor, "1 32 mult"], mask: Bool[Tensor, "1 32 mult"]
 ):
     """
     More info here: https://arxiv.org/pdf/2206.00665.pdf supplementary section A2 Depth Consistency Loss
@@ -470,8 +473,8 @@ def normalized_depth_scale_and_shift(
 
 
 def columnwise_squared_l2_distance(
-    x: Float[Tensor, "*M N"],
-    y: Float[Tensor, "*M N"],
+        x: Float[Tensor, "*M N"],
+        y: Float[Tensor, "*M N"],
 ) -> Float[Tensor, "N N"]:
     """Compute the squared Euclidean distance between all pairs of columns.
     Adapted from https://github.com/google-research/multinerf/blob/5b4d4f64608ec8077222c52fdf814d40acc10bc1/internal/geopoly.py
@@ -483,8 +486,8 @@ def columnwise_squared_l2_distance(
         sq_dist: tensor of floats, with shape [N, N].
     """
     # Use the fact that ||x - y||^2 == ||x||^2 + ||y||^2 - 2 x^T y.
-    sq_norm_x = torch.sum(x**2, 0)
-    sq_norm_y = torch.sum(y**2, 0)
+    sq_norm_x = torch.sum(x ** 2, 0)
+    sq_norm_y = torch.sum(y ** 2, 0)
     sq_dist = sq_norm_x[:, None] + sq_norm_y[None, :] - 2 * x.T @ y
     return sq_dist
 
@@ -511,7 +514,7 @@ def _compute_tesselation_weights(v: int) -> Tensor:
 
 
 def _tesselate_geodesic(
-    vertices: Float[Tensor, "N 3"], faces: Float[Tensor, "M 3"], v: int, eps: float = 1e-4
+        vertices: Float[Tensor, "N 3"], faces: Float[Tensor, "M 3"], v: int, eps: float = 1e-4
 ) -> Tensor:
     """Tesselate the vertices of a geodesic polyhedron.
 
@@ -532,7 +535,7 @@ def _tesselate_geodesic(
     verts = []
     for face in faces:
         new_verts = torch.matmul(tri_weights, vertices[face, :])
-        new_verts /= torch.sqrt(torch.sum(new_verts**2, 1, keepdim=True))
+        new_verts /= torch.sqrt(torch.sum(new_verts ** 2, 1, keepdim=True))
         verts.append(new_verts)
     verts = torch.concatenate(verts, 0)
 
@@ -544,10 +547,10 @@ def _tesselate_geodesic(
 
 
 def generate_polyhedron_basis(
-    basis_shape: Literal["icosahedron", "octahedron"],
-    angular_tesselation: int,
-    remove_symmetries: bool = True,
-    eps: float = 1e-4,
+        basis_shape: Literal["icosahedron", "octahedron"],
+        angular_tesselation: int,
+        remove_symmetries: bool = True,
+        eps: float = 1e-4,
 ) -> Tensor:
     """Generates a 3D basis by tesselating a geometric polyhedron.
     Basis is used to construct Fourier features for positional encoding.
