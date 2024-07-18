@@ -30,7 +30,6 @@ from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes, TrainingCallbackLocation
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
-from zip_nerf_mp.utils.spatial_distortions import SceneContractionMultisamples
 from nerfstudio.fields.density_fields import HashMLPDensityField
 from nerfstudio.fields.nerfacto_field import NerfactoField
 from nerfstudio.model_components.losses import (
@@ -47,10 +46,6 @@ from nerfstudio.model_components.scene_colliders import NearFarCollider
 from nerfstudio.model_components.shaders import NormalsShader
 from nerfstudio.models.base_model import Model, ModelConfig
 from nerfstudio.utils import colormaps
-
-from zip_nerf_mp.model_components.ray_samplers import ZipNerfProposalNetworkSampler
-from zip_nerf_mp.model_components.density_field import HashMLPDensityFieldGaussMs
-
 
 
 @dataclass
@@ -78,7 +73,7 @@ class NerfactoModelConfig(ModelConfig):
     """Maximum resolution of the hashmap for the base mlp."""
     log2_hashmap_size: int = 19
     """Size of the hashmap for the base mlp"""
-    features_per_level_proposal: int = 2
+    features_per_level: int = 2
     """How many hashgrid features per level"""
     num_proposal_samples_per_ray: Tuple[int, ...] = (256, 96)
     """Number of samples per ray for each proposal network."""
@@ -94,10 +89,8 @@ class NerfactoModelConfig(ModelConfig):
     """Use the same proposal network. Otherwise use different ones."""
     proposal_net_args_list: List[Dict] = field(
         default_factory=lambda: [
-            # {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 128, "use_linear": False},
-            # {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 256, "use_linear": False},
-            {"num_layers": 3, "hidden_dim": 128, "log2_hashmap_size": 17, "num_levels": 8, "max_res": 512, "features_per_level": 1},
-            {"num_layers": 3, "hidden_dim": 128, "log2_hashmap_size": 17, "num_levels": 8, "max_res": 1024, "features_per_level": 1}
+            {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 128, "use_linear": False},
+            {"hidden_dim": 16, "log2_hashmap_size": 17, "num_levels": 5, "max_res": 256, "use_linear": False},
         ]
     )
     """Arguments for the proposal density fields."""
@@ -166,7 +159,7 @@ class NerfactoModel(Model):
             num_levels=self.config.num_levels,
             max_res=self.config.max_res,
             base_res=self.config.base_res,
-            features_per_level=self.config.features_per_level_proposal,
+            features_per_level=self.config.features_per_level,
             log2_hashmap_size=self.config.log2_hashmap_size,
             hidden_dim_color=self.config.hidden_dim_color,
             hidden_dim_transient=self.config.hidden_dim_transient,
