@@ -219,6 +219,7 @@ def conical_frustum_to_gaussian_multisamples(
     Returns:
         Multiple samples Gaussians: Approximation of conical frustums
     """
+
     def theta_angles(x):
         return (x * torch.pi) / 3
 
@@ -239,14 +240,15 @@ def conical_frustum_to_gaussian_multisamples(
 
     def construct_multisample(index):
         tj = t_j(index)
-        x = radius * tj * torch.cos(thetas[index] / torch.sqrt(torch.tensor(2, device=tj.device)))
-        y = radius * tj * torch.sin(thetas[index] / torch.sqrt(torch.tensor(2, device=tj.device)))
+        x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
+        y = radius * tj * np.sin(thetas[index] / np.sqrt(2))
         stacked = torch.stack((x, y, tj), dim=-1)
         return stacked, tj
 
-    def create_orthonormal_basis(direction_tensor: torch.tensor) -> torch.tensor:
+    def create_orthonormal_basis(direction_tensor):
+        batch_size, num_directions, direction = direction_tensor.shape
         d_norm = torch.norm(direction_tensor, dim=-1, keepdim=True)
-        e3: Tensor = direction_tensor / d_norm
+        e3 = direction_tensor / d_norm
 
         rand_vector = torch.tensor([1.0, 0.0, 0.0], device=direction_tensor.device, dtype=direction_tensor.dtype)
         rand_vector = rand_vector.expand_as(e3)
@@ -259,10 +261,7 @@ def conical_frustum_to_gaussian_multisamples(
         rand_vector = torch.where(matches_expanded, replacement, rand_vector)
 
         e2 = torch.cross(e3, rand_vector)
-        e2 /= torch.norm(e2, dim=-1, keepdim=True)
-
         e1 = torch.cross(e2, e3)
-        # ToDo: Need to be transposed?
         stacked = torch.stack((e1, e2, e3), dim=-1)
         stacked = torch.transpose(stacked, -2, -1)
         return stacked
@@ -277,25 +276,23 @@ def conical_frustum_to_gaussian_multisamples(
     # Create multisamples as stated in zip nerf paper equation 3
     ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
 
-    directions_clone = torch.clone(directions)
     # Create orthonormal basis
-    basis = create_orthonormal_basis(direction_tensor=directions_clone)
+    basis = create_orthonormal_basis(direction_tensor=directions)
     # scale by orthonormal basis and rotate into world coordinates
     ms_wc = torch.matmul(ms, basis)
 
     # expand origins and directions so it matches the dimensions of the multisamples
     origins_expanded = torch.clone(origins).unsqueeze(2).expand(-1, -1, 6, -1)
-    directions_expanded = torch.clone(directions).unsqueeze(2).expand(-1, -1, 6, -1)
 
     # Create means of Gaussians
-    means = origins_expanded + directions_expanded * ms_wc
+    means = origins_expanded + ms_wc
     # means = means.reshape(means.shape[:1] + (means.shape[1] * means.shape[2], means.shape[-1]))
     # Create standard deviation
-    # ToDo: multiply or divide by scale parameter 0.5
-    sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) * np.sqrt(2) * 0.5
-    sigmas = sigmas.reshape(means.shape[:-1] + (1, ))
-    # sigmas = sigmas.reshape(sigmas.shape[:1] + (sigmas.shape[1] * sigmas.shape[2], 1))
+    sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
+    sigmas = sigmas.reshape(means.shape[:-1] + (1,))
+
     return GaussianMultisamples(mean=means, sigma=sigmas)
+
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
     """Computes the expected value of sin(y) where y ~ N(x_means, x_vars)
