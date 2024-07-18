@@ -282,14 +282,13 @@ def conical_frustum_to_gaussian_multisamples(
     ms_wc = torch.matmul(ms, basis)
 
     # expand origins and directions so it matches the dimensions of the multisamples
-    origins_expanded = torch.clone(origins).unsqueeze(2).expand(-1, -1, 6, -1)
+    origins_expanded = origins.unsqueeze(2).expand(-1, -1, 6, -1)
 
     # Create means of Gaussians
     means = origins_expanded + ms_wc
-    # means = means.reshape(means.shape[:1] + (means.shape[1] * means.shape[2], means.shape[-1]))
     # Create standard deviation
     sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
-    sigmas = sigmas.reshape(means.shape[:-1] + (1,))
+    sigmas = sigmas.view(means.shape[:-1] + (1,))
 
     return GaussianMultisamples(mean=means, sigma=sigmas)
 
