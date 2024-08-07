@@ -204,6 +204,7 @@ def conical_frustum_to_gaussian_multisamples(
     starts: Float[Tensor, "*batch 1"],
     ends: Float[Tensor, "*batch 1"],
     radius: Float[Tensor, "*batch 1"],
+    training: bool = False
 ) -> GaussianMultisamples:
     """Approximates conical frustums with a Gaussian multisamples.
 
@@ -223,12 +224,14 @@ def conical_frustum_to_gaussian_multisamples(
     def theta_angles(x):
         return (x * torch.pi) / 3
 
-    thetas = torch.tensor([0,
+    thetas = torch.tensor(
+        [0,
               theta_angles(2),
               theta_angles(4),
               theta_angles(3),
               theta_angles(5),
-              theta_angles(1)])
+              theta_angles(1)],
+              device=origins.device)
 
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
@@ -238,12 +241,12 @@ def conical_frustum_to_gaussian_multisamples(
         denominator = (t_delta**2 + 3*t_mu**2)
         return starts + numerator / denominator
 
-    def construct_multisample(index):
-        tj = t_j(index)
-        x = radius * tj * np.cos(thetas[index] / np.sqrt(2))
-        y = radius * tj * np.sin(thetas[index] / np.sqrt(2))
-        stacked = torch.stack((x, y, tj), dim=-1)
-        return stacked, tj
+    # def construct_multisample(index):
+    #     tj = t_j(index)
+    #     x = radius * tj * torch.cos(thetas[index] / torch.sqrt(torch.tensor(2.0)))
+    #     y = radius * tj * torch.sin(thetas[index] / torch.sqrt(torch.tensor(2.0)))
+    #     stacked = torch.stack((x, y, tj), dim=-1)
+    #     return stacked, tj
 
     def create_orthonormal_basis(direction_tensor):
         batch_size, num_directions, direction = direction_tensor.shape
@@ -266,15 +269,27 @@ def conical_frustum_to_gaussian_multisamples(
         stacked = torch.transpose(stacked, -2, -1)
         return stacked
 
-    first, t0 = construct_multisample(0)
-    second, t1 = construct_multisample(1)
-    third, t2 = construct_multisample(2)
-    forth, t3 = construct_multisample(3)
-    fifth, t4 = construct_multisample(4)
-    sixth, t5 = construct_multisample(5)
+    # first, t0 = construct_multisample(0)
+    # second, t1 = construct_multisample(1)
+    # third, t2 = construct_multisample(2)
+    # forth, t3 = construct_multisample(3)
+    # fifth, t4 = construct_multisample(4)
+    # sixth, t5 = construct_multisample(5)
+
+    j = torch.arange(start=0, end=6, device=origins.device)
+    tj = t_j(j).to(origins.device)
 
     # Create multisamples as stated in zip nerf paper equation 3
-    ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
+    # ms = torch.cat((first, second, third, forth, fifth, sixth), dim=2)
+    ms = torch.stack(
+        (
+            radius * tj * torch.cos(thetas / torch.sqrt(torch.tensor(2.0))),
+            radius * tj * torch.sin(thetas / torch.sqrt(torch.tensor(2.0))),
+            tj
+        ),
+        dim=-1
+
+    )
 
     # Create orthonormal basis
     basis = create_orthonormal_basis(direction_tensor=directions)
@@ -287,7 +302,8 @@ def conical_frustum_to_gaussian_multisamples(
     # Create means of Gaussians
     means = origins_expanded + ms_wc
     # Create standard deviation
-    sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
+    # sigmas = (torch.cat((t0, t1, t2, t3, t4, t5), dim=-1) * radius) / np.sqrt(2) * 0.5
+    sigmas = tj * radius / np.sqrt(2) * 0.5
     sigmas = sigmas.view(means.shape[:-1] + (1,))
 
     return GaussianMultisamples(mean=means, sigma=sigmas)
