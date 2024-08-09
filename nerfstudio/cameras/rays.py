@@ -88,7 +88,7 @@ class Frustums(TensorDataclass):
             radius=cone_radius,
         )
 
-    def get_gaussian_blob_multisamples(self) -> GaussianMultisamples:
+    def get_gaussian_blob_multisamples(self, training: bool) -> GaussianMultisamples:
         """Calculates guassian approximation of conical frustum.
 
         Returns:
@@ -104,6 +104,7 @@ class Frustums(TensorDataclass):
             starts=self.starts,
             ends=self.ends,
             radius=cone_radius,
+            training=training
         )
 
     @classmethod

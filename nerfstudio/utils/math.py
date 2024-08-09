@@ -204,7 +204,7 @@ def conical_frustum_to_gaussian_multisamples(
     starts: Float[Tensor, "*batch 1"],
     ends: Float[Tensor, "*batch 1"],
     radius: Float[Tensor, "*batch 1"],
-    training: bool = False
+    training: bool
 ) -> GaussianMultisamples:
     """Approximates conical frustums with a Gaussian multisamples.
 
@@ -216,6 +216,7 @@ def conical_frustum_to_gaussian_multisamples(
         starts: Start of conical frustums.
         ends: End of conical frustums.
         radius: Radii of cone a distance of 1 from the origin.
+        training: indicates if training phase or not
 
     Returns:
         Multiple samples Gaussians: Approximation of conical frustums
@@ -224,21 +225,23 @@ def conical_frustum_to_gaussian_multisamples(
     def theta_angles(x):
         return (x * torch.pi) / 3
 
-    thetas = torch.tensor(
-        [0,
-              theta_angles(2),
-              theta_angles(4),
-              theta_angles(3),
-              theta_angles(5),
-              theta_angles(1)],
-              device=origins.device)
+    thetas = theta_angles(torch.tensor((0, 2, 4, 3, 5, 1), device=origins.device))
+    # thetas = torch.tensor(
+    # [0,
+    #      theta_angles(2),
+    #      theta_angles(4),
+    #      theta_angles(3),
+    #      theta_angles(5),
+    #      theta_angles(1)],
+    #     device=origins.device)
 
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
 
     def t_j(j):
-        numerator = t_delta * (ends**2 + 2*t_mu**2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt((t_delta**2 - t_mu**2)**2 + 4*t_mu**4))
-        denominator = (t_delta**2 + 3*t_mu**2)
+        numerator = t_delta * (ends ** 2 + 2 * t_mu ** 2 + (3 / math.sqrt(7) * ((2 * j / 5) - 1)) * torch.sqrt(
+            (t_delta ** 2 - t_mu ** 2) ** 2 + 4 * t_mu ** 4))
+        denominator = (t_delta ** 2 + 3 * t_mu ** 2)
         return starts + numerator / denominator
 
     def create_orthonormal_basis(direction_tensor):
@@ -264,15 +267,30 @@ def conical_frustum_to_gaussian_multisamples(
     j = torch.arange(start=0, end=6, device=origins.device)
     tj = t_j(j).to(origins.device)
 
+    degrees = thetas.expand_as(tj)
+    if training:
+        angle = 30.0 * torch.pi / 180.0
+        rand = torch.rand_like(degrees[..., :1], device=origins.device) > 0.4
+        rand = rand.expand_as(degrees)
+        # ToDo: Does this  improve results? rotating not only by 30 degree, also by 60 in some cases?
+        # rotations_count = (torch.randint_like(degrees[..., :1], low=1, high=2)).expand_as(degrees)
+        # rotate by 30 degrees
+        rotated_thetas = degrees + angle
+        # only take rotation where rand is true
+        degrees = torch.where(rand, rotated_thetas, degrees)
+        # exceeded = degrees > (2.0 * torch.pi)
+        # degrees = torch.where(exceeded, 2.0 * torch.pi, degrees)
+    else:
+        abcdfg = []
+
     # Create multisamples as stated in zip nerf paper equation 3
     ms = torch.stack(
         (
-            radius * tj * torch.cos(thetas / torch.sqrt(torch.tensor(2.0))),
-            radius * tj * torch.sin(thetas / torch.sqrt(torch.tensor(2.0))),
+            radius * tj * torch.cos(degrees) / torch.sqrt(torch.tensor(2.0)),
+            radius * tj * torch.sin(degrees) / torch.sqrt(torch.tensor(2.0)),
             tj
         ),
         dim=-1
-
     )
 
     # Create orthonormal basis
