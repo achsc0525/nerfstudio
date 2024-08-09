@@ -268,22 +268,27 @@ def conical_frustum_to_gaussian_multisamples(
     tj = t_j(j).to(origins.device)
 
     degrees = thetas.expand_as(tj)
+    degrees = degrees * 180 / torch.pi
+    angle = 30.0
+    eps = torch.finfo(torch.float32).eps
     if training:
-        angle = 30.0 * torch.pi / 180.0
-        rand = torch.rand_like(degrees[..., :1], device=origins.device) > 0.4
-        rand = rand.expand_as(degrees)
         # ToDo: Does this  improve results? rotating not only by 30 degree, also by 60 in some cases?
-        # rotations_count = (torch.randint_like(degrees[..., :1], low=1, high=2)).expand_as(degrees)
-        # rotate by 30 degrees
-        rotated_thetas = degrees + angle
-        # only take rotation where rand is true
-        degrees = torch.where(rand, rotated_thetas, degrees)
-        # exceeded = degrees > (2.0 * torch.pi)
-        # degrees = torch.where(exceeded, 2.0 * torch.pi, degrees)
-    else:
-        abcdfg = []
+        # while training, randomly flip each pattern
+        rotations_count = (torch.randint_like(degrees[..., :1], low=1, high=5)).expand_as(degrees)
 
+    else:
+        # deterministically rotate and flip while rendering
+        # while rendering rotations need to be equal along conical frustum for all hexagonal patterns
+        rotations_count = torch.randint(low=1, high=5, size=(degrees.shape[0], ))
+        rotations_count = rotations_count[..., None, None]
+        rotations_count = rotations_count.expand_as(degrees)
+
+    degrees = degrees + angle * rotations_count
+    exceeded = (degrees - eps) > 360.0 + eps
+    diff = degrees - 360.0
+    degrees = torch.where(exceeded, diff, degrees)
     # Create multisamples as stated in zip nerf paper equation 3
+    degrees = degrees * torch.pi / 180.0
     ms = torch.stack(
         (
             radius * tj * torch.cos(degrees) / torch.sqrt(torch.tensor(2.0)),
