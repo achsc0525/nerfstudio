@@ -111,10 +111,10 @@ class GaussianMultisamples:
 
     Args:
         mean: Mean of Gaussian
-        sigma: Variances of Gaussian
+        std: Variances of Gaussian
     """
     mean: Float[Tensor, "*batch dim"]
-    sigma: Float[Tensor, "*batch dim"]
+    std: Float[Tensor, "*batch dim"]
 
 def compute_3d_gaussian(
     directions: Float[Tensor, "*batch 3"],
@@ -283,7 +283,7 @@ def conical_frustum_to_gaussian_multisamples(
         rotations_count = rotations_count[..., None, None]
         rotations_count = rotations_count.expand_as(degrees)
 
-    degrees = degrees + angle * rotations_count
+    degrees = degrees + angle * rotations_count.to(origins.device)
     exceeded = (degrees - eps) > 360.0 + eps
     diff = degrees - 360.0
     degrees = torch.where(exceeded, diff, degrees)
@@ -312,7 +312,7 @@ def conical_frustum_to_gaussian_multisamples(
     sigmas = tj * radius / np.sqrt(2) * 0.5
     sigmas = sigmas.view(means.shape[:-1] + (1,))
 
-    return GaussianMultisamples(mean=means, sigma=sigmas)
+    return GaussianMultisamples(mean=means, std=sigmas)
 
 
 def expected_sin(x_means: torch.Tensor, x_vars: torch.Tensor) -> torch.Tensor:
