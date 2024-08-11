@@ -226,14 +226,6 @@ def conical_frustum_to_gaussian_multisamples(
         return (x * torch.pi) / 3
 
     thetas = theta_angles(torch.tensor((0, 2, 4, 3, 5, 1), device=origins.device))
-    # thetas = torch.tensor(
-    # [0,
-    #      theta_angles(2),
-    #      theta_angles(4),
-    #      theta_angles(3),
-    #      theta_angles(5),
-    #      theta_angles(1)],
-    #     device=origins.device)
 
     t_mu = (starts + ends) / 2.0
     t_delta = (ends - starts) / 2.0
@@ -271,23 +263,28 @@ def conical_frustum_to_gaussian_multisamples(
     degrees = degrees * 180 / torch.pi
     angle = 30.0
     eps = torch.finfo(torch.float32).eps
+    flipped = torch.flip(degrees, dims=[-1])
     if training:
-        # ToDo: Does this  improve results? rotating not only by 30 degree, also by 60 in some cases?
         # while training, randomly flip each pattern
-        rotations_count = (torch.randint_like(degrees[..., :1], low=1, high=5)).expand_as(degrees)
-
+        random = (torch.randn_like(degrees[..., :1]) < 0.5).expand_as(degrees)
+        rotations_count = (torch.randint_like(degrees[..., :1], low=1, high=11)).expand_as(degrees)
+        degrees = torch.where(random, flipped, degrees)
     else:
         # deterministically rotate and flip while rendering
         # while rendering rotations need to be equal along conical frustum for all hexagonal patterns
-        rotations_count = torch.randint(low=1, high=5, size=(degrees.shape[0], ))
-        rotations_count = rotations_count[..., None, None]
-        rotations_count = rotations_count.expand_as(degrees)
+        det = torch.zeros(degrees.shape[:-1], dtype=torch.bool, device=origins.device)
+        det[:, 0::2] = False
+        det[:, 1::2] = True
+        det = (det[..., None]).expand_as(degrees)
+        degrees = torch.where(det, flipped, degrees)
+        rotations_count = torch.zeros_like(det, dtype=torch.int, device=origins.device)
+        rotations_count[:, 0::2] = 0
+        rotations_count[:, 1::2] = 1
 
     degrees = degrees + angle * rotations_count.to(origins.device)
-    exceeded = (degrees - eps) > 360.0 + eps
+    exceeded = degrees > 359.0
     diff = degrees - 360.0
     degrees = torch.where(exceeded, diff, degrees)
-    # Create multisamples as stated in zip nerf paper equation 3
     degrees = degrees * torch.pi / 180.0
     ms = torch.stack(
         (
