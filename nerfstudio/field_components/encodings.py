@@ -30,6 +30,7 @@ from nerfstudio.field_components.base_field_component import FieldComponent
 from nerfstudio.utils.external import TCNN_EXISTS, tcnn
 from nerfstudio.utils.math import components_from_spherical_harmonics, expected_sin, generate_polyhedron_basis
 from nerfstudio.utils.printing import print_tcnn_speed_warning
+import math
 
 
 class Encoding(FieldComponent):
@@ -366,6 +367,7 @@ class HashEncoding(Encoding):
                 n_input_dims=3,
                 encoding_config=encoding_config,
             )
+            self.hash_encoding_offsets = self.calculate_hash_table_offsets_tcnn()
 
         if self.tcnn_encoding is None:
             assert (
@@ -464,6 +466,32 @@ class HashEncoding(Encoding):
         if self.tcnn_encoding is not None:
             return self.tcnn_encoding(in_tensor)
         return self.pytorch_fwd(in_tensor)
+
+    def calculate_hash_table_offsets_tcnn(self):
+        """
+        Calculates the hash table offsets from tcnn
+        calculation taken over from tiny-cuda-nn grid.h
+        """
+        def grid_resolution(scale):
+            return int(math.ceil(scale) + 1)
+
+        def grid_scale(level, log2perlvlscale, base_res):
+            return 2**(level * log2perlvlscale) * base_res - 1
+
+        def next_multiple(val, divisor=8):
+            return ((val + divisor - 1) // divisor) * divisor
+
+        offset = 0
+        offsets = []
+        offsets.append(offset)
+        for i in range(self.num_levels):
+            resolution = int(grid_resolution(grid_scale(i, math.log2(self.growth_factor), self.min_res)))
+            params_in_level = resolution**3
+            params_in_level = next_multiple(params_in_level, 8)
+            params_in_level = min(params_in_level, self.hash_table_size)
+            offset = offset + params_in_level
+            offsets.append(offset * self.features_per_level)
+        return offsets
 
 
 class TensorCPEncoding(Encoding):
